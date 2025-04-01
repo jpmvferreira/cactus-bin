@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+# function to display usage information
+usage() {
+  echo "An rsync wrapper to manage Einstein Toolkit source code"
+  echo ""
+  echo "Usage"
+  echo "  $0 [-t <host>] [-f <host>] [-h]"
+  echo ""
+  echo "Available flags:"
+  echo "  -t, --to      Sync current folder to <host>"
+  echo "  -f, --from    Sync current folder from <host>"
+  echo "  -h, --help    Prints this help dialog"
+  echo ""
+
+  exit 0
+}
+
+# define CLI variables
+to=""
+from=""
+
+# parse command-line options
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      ;;
+    -t|--to)
+      to=$2
+      shift 2
+      ;;
+    -f|--from)
+      from=$2
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: '$1', use -h, --help for more information"
+      exit 1
+      ;;
+  esac
+done
+
+# exit if there is some error in parsing the arguments
+if [ $? -ne 0 ]; then
+  echo "An unknown error took place while parsing the arguments"
+  exit 1
+fi
+
+# only one must be provided
+if [ -n "$to" ] && [ -n "$from" ]; then
+  echo "Supply either -t, --to or -f, --from but not both"
+  exit 1
+fi
+
+# sort source and destination
+if [ -n "$to" ]; then
+  src="."
+  dest=$(jq -r --arg k "$to" '.[$k]' $(dirname $(realpath $0))/hosts.json)
+
+  if [ "$dest" == "null" ]; then
+    echo "Error, unknown host"
+    exit 1
+  fi
+
+  dest=$to:$dest
+
+elif [ -n "$from" ]; then
+  dest="."
+  src=$(jq -r --arg k "$from" '.[$k]' $(dirname $(realpath $0))/hosts.json)
+
+  if [ "$src" == "null" ]; then
+    echo "Error, unknown host"
+    exit 1
+  fi
+
+  src=$from:$src
+fi
+
+# run rsync command
+rsync -rlptDh --progress --exclude=exe --exclude=configs --exclude=TEST --delete $src $dest
